@@ -2,7 +2,7 @@
 """
 Created on Thu Apr  6 09:14:57 2023
 
-@author: barbosl2
+@author: barbosl2, osjostedt
 """
 
 # Using U-net and keras to segment the image 
@@ -25,7 +25,7 @@ import tensorflow.keras.backend as K
 inputs_dir = 'Inputs/'
 outputs_dir = 'Outputs/'
 train_key = True # True to train model
-epochs_to_train = 500
+epochs_to_train = 10
 histogram_equalization_key = False # True to do histogram equalization
 seed = random.seed(1)
 
@@ -139,7 +139,7 @@ def f1_score(y_true, y_pred):
     return f1_score
 
 model = tf.keras.Model(inputs=[inputs], outputs=[outputs])
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[tf.keras.metrics.Precision(), f1_score, tf.keras.metrics.MeanIoU(num_classes=2)])
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[tf.keras.metrics.Precision(), f1_score, tf.keras.metrics.BinaryIoU(target_class_ids=[0], threshold=0.5)])
 model.summary()
 
 ########################################
@@ -159,7 +159,7 @@ callbacks = [
 
 
 if train_key:    
-    results = model.fit(X_train, Y_train, validation_split=0.05,
+    results = model.fit(X_train, Y_train, validation_split=0.1,
                         batch_size=16,
                         epochs=epochs_to_train, callbacks=callbacks, verbose = 1)
     model.save(f'Finished Models/Unet_{epochs_to_train}epochs.h5')

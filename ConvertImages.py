@@ -12,16 +12,15 @@ Created on Fri Apr  7 17:48:04 2023
 
 import numpy as np
 import cv2
-import pandas as pd
 import os
 from skimage import img_as_ubyte
 
 
 # Read clean DF
-inputs_dir = 'Inputs/RandomForest/'
+inputs_dir = 'Inputs/'
 outputs_dir = 'Outputs/'
 
-images = os.listdir(inputs_dir+'train/')
+images = os.listdir(inputs_dir+'raw/images/')
 images2 = []
 for i in range(len(images)):
     if images[i].split('.')[-1] in ['tif']:
@@ -31,25 +30,27 @@ images = images2
 # See if the mask is actually binary 
 pixel_values = []
 for image in images:
-    mask = cv2.imread(f'{inputs_dir}masks/{image}')
+    mask = cv2.imread(f'{inputs_dir}raw/masks/{image}')
     flat_mask = mask.reshape(-1)
     pixel_values.append(np.unique(flat_mask).tolist())
 pixels_dict = dict(zip(images, pixel_values))
 
-# We see that many masks are not actually binary. Must convert pixel values in order to binarize
+# Noted that many masks are not actually binary. Must convert pixel values in order to binarize
 # All less than 128 turn to zero, >= 128 turn to 255
 for image_name in pixels_dict.keys():
-    mask = cv2.imread(f'{inputs_dir}masks/{image_name}')
+    mask = cv2.imread(f'{inputs_dir}raw/masks/{image_name}')
     mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
     # Resize masks to 
     r_mask = cv2.resize(mask, dsize = (512, 512), interpolation = cv2.INTER_NEAREST)
     np.unique(r_mask)
     bin_mask = img_as_ubyte(np.where(r_mask>128, 255, 0))
+    # Needs to create treated_masks folder to output
     cv2.imwrite(f'{outputs_dir}treated_masks/{image_name}', bin_mask)
 
 for image_name in pixels_dict.keys():
-    img = cv2.imread(f'{inputs_dir}train/{image_name}')
+    img = cv2.imread(f'{inputs_dir}raw/images/{image_name}')
     r_image = cv2.resize(img, dsize = (512, 512), interpolation = cv2.INTER_LANCZOS4)
+    
     cv2.imwrite(f'{outputs_dir}resized_images/{image_name}', r_image)
 
 

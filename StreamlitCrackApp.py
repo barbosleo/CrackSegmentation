@@ -2,22 +2,22 @@
 """
 Created on Wed Apr 12 18:23:03 2023
 
-@author: osjostedt
+@author: osjostedt, barbosl2
 """
 
-import requests
-import ModelLoading
 import numpy as np
 import streamlit as st
 from PIL import Image
 import cv2
-import io
 from keras.models import load_model
 import tensorflow.keras.backend as K
+import plotly.graph_objs as go
+# from streamlit_plotly_events import plotly_events
 
-"""
-Run streamlit app by running: streamlit run StreamlitCrackApp.py
-"""
+# """
+# Run streamlit app by running: streamlit run StreamlitCrackApp.py
+# App will open in browser on a localhost
+# """
 
 models_path = 'Finished Models'
 model_filename = 'Unet_500epochs_2.h5'
@@ -48,11 +48,74 @@ st.write('Upload an image to detect cracks')
 # Add an image upload field to the Streamlit app
 uploaded_file = st.file_uploader('Choose an image...', type=['tif'])
 # Show the uploaded image to the user
+
+ruler_len_mm = st.number_input('Ruler length in [mm]:', value=2.0)
+
+
 if uploaded_file is not None:
+    # Import image
     image = Image.open(uploaded_file)
-    # Display the uploaded image
-    st.image(image)
+    img_width = image.width
+    img_height = image.height
+    # Create the figure
+
+    # Define the plotly chart config
+    layout = go.Layout(
+        images=[go.layout.Image(
+            source=image,
+            xref="x", yref="y",
+            x=0, y=1, sizex=img_width, sizey=img_height,
+            opacity=1,
+            layer="below")],
+        
+        dragmode='drawline', # False,
+        newshape=dict(line_color="red"),
+        hoverdistance = 0,
+        title_text='Draw the scale line to get the area of the crack',
+        clickmode='event+select',
+        uirevision='shapes',
+        
+        xaxis=dict(
+            range=[0,img_width],
+            showgrid=False,
+            zeroline=False,
+            showline=False,
+            ticks='',
+            # showticklabels=False
+        ),
+        yaxis=dict(
+            range=(img_height, 0),
+            showgrid=False,
+            zeroline=False,
+            showline=False,
+            ticks='',
+            # showticklabels=False,
+            scaleanchor='x'
+        )
+    )
     
+    config = {'displaylogo': False,
+              'displayModeBar': True,
+              'modeBarButtonsToRemove': ['zoom'],#, 'pan'], #, 'lasso2d'],# 'select2d'
+              'modeBarButtonsToAdd':['drawline', 'eraseshape', 'lasso2d']
+        }
+    
+    # Define the initial data for the figure
+    data = [go.Scatter(x=[0], y=[0], mode='lines')]
+    fig = go.Figure(data=data,layout=layout) # data=data
+    
+    ################### Add ruler  ###################
+    
+    # Add line to be used as ruler
+    fig.add_shape(type = 'line', x0 = 0, x1 = 100, y0 = 0, y1 = 0,
+                  xref='x', yref='y', line_color='red',
+                  name='ruler', editable = True)
+    fig.update_layout()
+    
+    st.plotly_chart(fig, config=config)
+    # st.write(fig.layout.shapes)
+    
+    ################### Prediction ###################
     # Turn to cv2, turn from RGB to BGR and resize
     cv2_image = np.array(image)[:, :, ::-1]
     new_width = 512
@@ -62,7 +125,6 @@ if uploaded_file is not None:
     X[0] = r_image
 
 # Detect mask
-
 if st.button('Detect'):
     # Check if an image has been uploaded
     if uploaded_file is not None:
@@ -70,11 +132,22 @@ if st.button('Detect'):
         if uploaded_file.type == 'image/tiff':
             # Predict
             # st.write('valid image')
-            predicted_crack = np.where(new_model.predict(X)>0.5, 255, 0)
-            st.write('Predicted crack below:')
-            st.image(predicted_crack, caption='Predicted Crack')
+            # st.write(fig.layout.shapes)
+            with st.expander('Detected crack', expanded = True):
+                # Get prediction, threshold, turn to cv2, resize back to original shape
+                predicted_crack = np.where(new_model.predict(X)>0.5, 255, 0)
+                # st.write(predicted_crack.shape)
+                predicted_crack = cv2.resize(predicted_crack[0], dsize = (img_width, img_height), interpolation = cv2.INTER_NEAREST)
+                
+                st.image(predicted_crack, caption='Predicted Crack')
+                st.write('Assuming 100 px on ruler, still to be implemented')
+                ruler_len_px = 100 # [px]
+                st.write(f'Ruler length in mm is: {ruler_len_mm}')
+                # Calculate crack area by ruelr length in [px], in [mm] and crack label count
+                crack_area = (ruler_len_mm/ruler_len_px)*np.unique(predicted_crack, return_counts=True)[1][0]
+                st.write(f'total crack area is {crack_area:.2f} [mm^2]') # TODO limit float decimal places
         else:
             st.write('Please upload a TIF file')
     else:
         st.write('Please upload an image')
-
+        
